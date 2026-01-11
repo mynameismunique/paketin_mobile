@@ -40,5 +40,4 @@ Database menggunakan **Firebase (Firestore)** biar datanya *real-time* tanpa per
 
 1. **Clone Repo ini:**
    ```bash
-   git clone [https://github.com/mynameismunique/paketin_mobile.git](https://github.com/mynameismunique/paketin_mobile.git)
-   cd paketin_mobile
+   git clone https://github.com/mynameismunique/paketin_mobile.git
