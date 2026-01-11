@@ -1,0 +1,33 @@
+name: paketin_mobile
+description: "Aplikasi Manajemen Gudang & Logistik"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # --- FIREBASE ---
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.4
+  firebase_storage: ^12.3.2
+  
+  # --- UI & TOOLS ---
+  google_fonts: ^6.2.1
+  intl: ^0.19.0
+  flutter_form_builder: ^9.0.0
+  image_picker: ^1.1.2
+  pdf: ^3.10.4
+  printing: ^5.11.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

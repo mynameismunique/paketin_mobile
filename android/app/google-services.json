@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "75674283996",
+    "project_id": "paketin-db",
+    "storage_bucket": "paketin-db.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:75674283996:android:c02870b2d20ad2ef382919",
+        "android_client_info": {
+          "package_name": "com.example.paketin_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDBr8zH4xzUeaiUOQFsH4_u0D2N4AsCzls"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
