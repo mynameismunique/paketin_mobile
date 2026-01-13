@@ -38,6 +38,15 @@ Database menggunakan **Firebase (Firestore)** biar datanya *real-time* tanpa per
 
 ## Cara Jalanin Project (Installation)
 
-1. **Clone Repo ini:**
+1. **Siapkan folder terlebih dahulu, untuk kalian simpan file project nya**
+2. **Clone Repository ini dengan cara mengetikan:**
    ```bash
    git clone https://github.com/mynameismunique/paketin_mobile.git
+3. **Project berhasil di clone, selanjutnya kalian bisa langsung buka IDE yang kalian mau untuk buka file project nya**
+4. **Jangan lupa untuk mengetik kembali**
+   ```bash
+   flutter clean
+
+5. **Jangan lupa untuk mengetik kembali:**
+   ```bash
+   flutter run
