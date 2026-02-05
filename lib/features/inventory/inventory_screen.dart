@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'edit_item_screen.dart';
@@ -22,7 +24,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text("Gudang & Lokasi", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text("Gudang & Stok", style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
@@ -38,6 +40,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
       ),
       body: Column(
         children: [
+
+          //Pencarian
           Container(
             padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
             decoration: const BoxDecoration(
@@ -86,6 +90,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ),
           ),
 
+          // Daftar Barang
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance.collection('products').orderBy('createdAt', descending: true).snapshots(),
@@ -113,11 +118,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     var docId = product.id;
                     int totalStock = data['stock'] ?? 0;
                     
-                    Map<String, dynamic> locations = (data['warehouse_stocks'] as Map<String, dynamic>?) ?? {};
                     
-                    if (locations.isEmpty && totalStock > 0) {
-                      locations = {'Gudang Pusat': totalStock};
-                    }
+                    String? imageBase64 = data['imageBase64'];
+
+                    Map<String, dynamic> locations = (data['warehouse_stocks'] as Map<String, dynamic>?) ?? {};
+                    if (locations.isEmpty && totalStock > 0) locations = {'Gudang Pusat': totalStock};
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 15),
@@ -134,16 +139,38 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Container(
-                                width: 50, height: 50,
-                                decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(10)),
-                                child: Center(child: Text(data['name'][0].toUpperCase(), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue))),
+                                width: 60, height: 60,
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[50],
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: Colors.grey.shade200),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: (imageBase64 != null && imageBase64.isNotEmpty)
+                                      ? Image.memory(
+                                          base64Decode(imageBase64),
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return const Icon(Icons.broken_image, color: Colors.grey);
+                                          },
+                                        )
+                                      : Center(
+                                          child: Text(
+                                            data['name'][0].toUpperCase(),
+                                            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue),
+                                          ),
+                                        ),
+                                ),
                               ),
+
                               const SizedBox(width: 15),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(data['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    const SizedBox(height: 4),
                                     Text("SKU: ${data['sku']} • ${data['category']}", style: TextStyle(color: Colors.grey[600], fontSize: 12)),
                                   ],
                                 ),
@@ -183,7 +210,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             runSpacing: 8,
                             children: locations.entries.map((entry) {
                               if (entry.value == 0) return const SizedBox.shrink();
-                              
                               return Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                 decoration: BoxDecoration(

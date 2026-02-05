@@ -9,215 +9,228 @@ class MutationScreen extends StatefulWidget {
 }
 
 class _MutationScreenState extends State<MutationScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _qtyController = TextEditingController();
-  
-  final List<String> _warehouses = ['Gudang Pusat', 'Gudang Bandung', 'Gudang Surabaya'];
-
   String? _selectedProductDocId;
   String? _selectedProductName;
   String? _sourceWarehouse;
   String? _destWarehouse;
-
-  int _currentSourceStock = 0; 
-  bool _isLoading = false;
+  final TextEditingController _qtyController = TextEditingController();
+  
+  final List<String> _warehouses = ['Gudang Pusat', 'Gudang Bandung', 'Gudang Surabaya', 'Gudang Medan'];
 
   Future<void> _submitMutation() async {
-    if (_formKey.currentState!.validate()) {
-      String source = _sourceWarehouse!; 
-      String dest = _destWarehouse!;
+    if (_selectedProductDocId == null || _sourceWarehouse == null || _destWarehouse == null || _qtyController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Mohon lengkapi semua data")));
+      return;
+    }
 
-      if (source == dest) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Gudang asal dan tujuan tidak boleh sama!"), backgroundColor: Colors.orange),
-        );
-        return;
-      }
+    if (_sourceWarehouse == _destWarehouse) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gudang asal dan tujuan tidak boleh sama!"), backgroundColor: Colors.red));
+      return;
+    }
 
-      int qty = int.parse(_qtyController.text);
+    int qty = int.tryParse(_qtyController.text) ?? 0;
+    if (qty <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Jumlah harus lebih dari 0")));
+      return;
+    }
 
-      if (qty > _currentSourceStock) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Stok di $source cuma $_currentSourceStock!"), backgroundColor: Colors.red),
-        );
-        return;
-      }
+    try {
+      DocumentReference productRef = FirebaseFirestore.instance.collection('products').doc(_selectedProductDocId);
+      
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        DocumentSnapshot snapshot = await transaction.get(productRef);
+        if (!snapshot.exists) throw Exception("Produk tidak ditemukan!");
 
-      setState(() => _isLoading = true);
+        Map<String, dynamic> data = snapshot.data() as Map<String, dynamic>;
+        Map<String, dynamic> warehouseStocks = (data['warehouse_stocks'] as Map<String, dynamic>?) ?? {};
 
-      try {
-        DocumentReference productRef = FirebaseFirestore.instance.collection('products').doc(_selectedProductDocId);
+        String source = _sourceWarehouse!;
+        String dest = _destWarehouse!;
         
-        await FirebaseFirestore.instance.runTransaction((transaction) async {
-          DocumentSnapshot snapshot = await transaction.get(productRef);
-          if (!snapshot.exists) throw Exception("Produk tidak ditemukan!");
+        int oldSourceStock = warehouseStocks[source] ?? 0;
+        int oldDestStock = warehouseStocks[dest] ?? 0;
 
-          Map<String, dynamic> data = snapshot.data() as Map<String, dynamic>;
-          Map<String, dynamic> warehouseStocks = (data['warehouse_stocks'] as Map<String, dynamic>?) ?? {};
+        int newSourceStock = oldSourceStock - qty;
+        int newDestStock = oldDestStock + qty;
 
-          String source = _sourceWarehouse!;
-          String dest = _destWarehouse!;
-          int oldSourceStock = warehouseStocks[source] ?? 0;
-          int oldDestStock = warehouseStocks[dest] ?? 0;
+        warehouseStocks[source] = newSourceStock;
+        warehouseStocks[dest] = newDestStock;
 
-          int newSourceStock = oldSourceStock - qty;
-          int newDestStock = oldDestStock + qty;
+        transaction.update(productRef, {'warehouse_stocks': warehouseStocks});
 
-          warehouseStocks[source] = newSourceStock;
-          warehouseStocks[dest] = newDestStock;
-
-          transaction.update(productRef, {'warehouse_stocks': warehouseStocks});
-
-          transaction.set(FirebaseFirestore.instance.collection('mutations').doc(), {
-            'productName': _selectedProductName,
-            'from': source,
-            'to': dest,
-            'qty': qty,
-            'date': FieldValue.serverTimestamp(),
-          });
-
-          transaction.set(FirebaseFirestore.instance.collection('audit_logs').doc(), {
-            'activity': "Mutasi Gudang",
-            'details': "Memindahkan $_selectedProductName ($qty unit) dari $source ke $dest",
-            'user': "Admin",
-            'timestamp': FieldValue.serverTimestamp(),
-            'type': 'warning',
-          });
+        transaction.set(FirebaseFirestore.instance.collection('mutations').doc(), {
+          'productName': _selectedProductName,
+          'from': source,
+          'to': dest,
+          'qty': qty,
+          'date': FieldValue.serverTimestamp(),
         });
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Mutasi Berhasil!"), backgroundColor: Colors.green),
-          );
-          Navigator.pop(context);
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Gagal: $e"), backgroundColor: Colors.red),
-          );
-        }
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
-      }
-    }
-  }
+        transaction.set(FirebaseFirestore.instance.collection('audit_logs').doc(), {
+          'activity': "Mutasi Gudang",
+          'details': "Pindah $_selectedProductName ($qty) : $source -> $dest",
+          'user': "Admin",
+          'timestamp': FieldValue.serverTimestamp(),
+          'type': 'warning',
+        });
+      });
 
-  InputDecoration _modernInput(String label, IconData icon) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon, color: Colors.grey[600]),
-      filled: true,
-      fillColor: Colors.grey.shade100,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
-    );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Mutasi Berhasil!"), backgroundColor: Colors.green));
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal: $e"), backgroundColor: Colors.red));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Mutasi Antar Gudang"), backgroundColor: Colors.indigo, foregroundColor: Colors.white),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text("Pindahkan Barang", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              const Text("Transfer stok antar lokasi gudang", style: TextStyle(color: Colors.grey)),
-              const SizedBox(height: 25),
-
-              StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance.collection('products').snapshots(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) return const LinearProgressIndicator();
-                  
-                  List<DropdownMenuItem<String>> items = [];
-                  for (var doc in snapshot.data!.docs) {
-                    var data = doc.data() as Map<String, dynamic>;
-                    items.add(DropdownMenuItem(
-                      value: doc.id,
-                      child: Text(data['name']),
-                      onTap: () {
-                        setState(() {
-                          _selectedProductName = data['name'];
-                          var stocks = data['warehouse_stocks'] as Map<String, dynamic>? ?? {};
-                          if (stocks.isEmpty && _sourceWarehouse == 'Gudang Pusat') {
-                             _currentSourceStock = data['stock'] ?? 0; 
-                          } else if (_sourceWarehouse != null) {
-                             _currentSourceStock = stocks[_sourceWarehouse] ?? 0;
-                          }
-                        });
-                      },
-                    ));
-                  }
-                  return DropdownButtonFormField<String>(
-                    decoration: _modernInput("Pilih Barang", Icons.inventory_2),
-                    items: items,
-                    value: _selectedProductDocId,
-                    onChanged: (val) => setState(() => _selectedProductDocId = val),
-                    validator: (val) => val == null ? "Wajib pilih barang" : null,
-                  );
-                },
-              ),
-              const SizedBox(height: 20),
-
-              Row(
+      backgroundColor: Colors.blue[800], 
+      appBar: AppBar(
+        title: const Text("Mutasi Antar Gudang"),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.white,
+      ),
+      body: Column(
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(20),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      decoration: _modernInput("Dari", Icons.store_mall_directory),
-                      value: _sourceWarehouse,
-                      items: _warehouses.map((w) => DropdownMenuItem(value: w, child: Text(w, style: const TextStyle(fontSize: 12)))).toList(),
-                      onChanged: (val) => setState(() {
-                        _sourceWarehouse = val;
-                      }),
-                      validator: (val) => val == null ? "Wajib" : null,
-                    ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10),
-                    child: Icon(Icons.arrow_forward, color: Colors.grey),
-                  ),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      decoration: _modernInput("Ke", Icons.store),
-                      value: _destWarehouse,
-                      items: _warehouses.map((w) => DropdownMenuItem(value: w, child: Text(w, style: const TextStyle(fontSize: 12)))).toList(),
-                      onChanged: (val) => setState(() => _destWarehouse = val),
-                      validator: (val) => val == null ? "Wajib" : null,
-                    ),
-                  ),
+                  Text("Pindahkan Barang", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                  Text("Transfer stok antar lokasi gudang", style: TextStyle(color: Colors.white70)),
                 ],
               ),
-              
-              const SizedBox(height: 10),
-              if (_sourceWarehouse != null && _selectedProductDocId != null)
-                Text("Stok di $_sourceWarehouse: $_currentSourceStock unit", 
-                    style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
-
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: _qtyController,
-                keyboardType: TextInputType.number,
-                decoration: _modernInput("Jumlah Transfer", Icons.onetwothree),
-                validator: (val) => val!.isEmpty ? "Wajib diisi" : null,
+            ),
+          ),
+          
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(25),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
               ),
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance.collection('products').orderBy('name').snapshots(),
+                      builder: (context, snapshot) {
+                        List<DropdownMenuItem<String>> items = [];
+                        if (snapshot.hasData) {
+                          for (var doc in snapshot.data!.docs) {
+                            var data = doc.data() as Map<String, dynamic>;
+                            items.add(DropdownMenuItem(
+                              value: doc.id,
+                              child: Text(data['name'], overflow: TextOverflow.ellipsis),
+                              onTap: () => setState(() => _selectedProductName = data['name']),
+                            ));
+                          }
+                        }
+                        return _modernDropdownField("Pilih Barang", Icons.inventory_2, _selectedProductDocId, items, (val) {
+                          setState(() => _selectedProductDocId = val);
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 20),
 
-              const SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.swap_horiz),
-                  label: Text(_isLoading ? "Memindahkan..." : "MUTASI STOK"),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
-                  onPressed: _isLoading ? null : _submitMutation,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _modernDropdownField(
+                            "Dari", 
+                            Icons.store_mall_directory, 
+                            _sourceWarehouse, 
+                            _warehouses.map((w) => DropdownMenuItem(value: w, child: Text(w, style: const TextStyle(fontSize: 12)))).toList(), // Font diperkecil dikit
+                            (val) => setState(() => _sourceWarehouse = val)
+                          ),
+                        ),
+                        
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 10),
+                          child: Icon(Icons.arrow_forward, color: Colors.grey),
+                        ),
+
+                        Expanded(
+                          child: _modernDropdownField(
+                            "Ke", 
+                            Icons.store, 
+                            _destWarehouse, 
+                            _warehouses.map((w) => DropdownMenuItem(value: w, child: Text(w, style: const TextStyle(fontSize: 12)))).toList(), 
+                            (val) => setState(() => _destWarehouse = val)
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    TextField(
+                      controller: _qtyController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.numbers, color: Colors.grey),
+                        labelText: "Jumlah Transfer",
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: ElevatedButton.icon(
+                        onPressed: _submitMutation,
+                        icon: const Icon(Icons.swap_horiz),
+                        label: const Text("MUTASI STOK"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue[800],
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          elevation: 5,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _modernDropdownField(String label, IconData icon, String? value, List<DropdownMenuItem<String>> items, Function(String?) onChanged) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          hint: Row(
+            children: [
+              Icon(icon, size: 20, color: Colors.grey),
+              const SizedBox(width: 8),
+              Expanded(child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13), overflow: TextOverflow.ellipsis)),
             ],
           ),
+          icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
+          isExpanded: true,
+          items: items,
+          onChanged: onChanged,
         ),
       ),
     );
