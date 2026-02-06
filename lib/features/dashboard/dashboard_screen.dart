@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/auth_service.dart';
+import '../../services/dashboard_service.dart';
+
 import '../auth/login_screen.dart';
 import '../inventory/inventory_screen.dart';
 import '../transactions/transaction_screen.dart';
@@ -20,12 +22,21 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  User? user = FirebaseAuth.instance.currentUser;
-  
-  bool get isAdmin => user?.email == 'admin@paketin.com';
+  final AuthService _authService = AuthService();
+  final DashboardService _dashboardService = DashboardService();
 
-  Future<void> _logout() async {
-    await FirebaseAuth.instance.signOut();
+  late bool isAdmin;
+  String? userEmail;
+
+  @override
+  void initState() {
+    super.initState();
+    isAdmin = _authService.isAdmin;
+    userEmail = _authService.currentUser?.email;
+  }
+
+  Future<void> _handleLogout() async {
+    await _authService.logout();
     if (mounted) {
       Navigator.pushReplacement(
         context, 
@@ -72,7 +83,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         child: CircleAvatar(
                           radius: 30,
                           backgroundImage: NetworkImage(
-                            "https://ui-avatars.com/api/?name=${user?.email ?? 'User'}&background=random&size=128"
+                            "https://ui-avatars.com/api/?name=${userEmail ?? 'User'}&background=random&size=128"
                           ),
                         ),
                       ),
@@ -83,7 +94,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             Text("Selamat Datang,", style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 14)),
                             Text(
-                              user?.email?.split('@')[0].toUpperCase() ?? "USER",
+                              userEmail?.split('@')[0].toUpperCase() ?? "USER",
                               style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -114,7 +125,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             tooltip: "Notifikasi",
                           ),
                           IconButton(
-                            onPressed: _logout, 
+                            onPressed: _handleLogout, 
                             icon: const Icon(Icons.logout, color: Colors.white),
                             tooltip: "Keluar",
                           )
@@ -140,15 +151,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: Row(
                       children: [
                         if (isAdmin) ...[
-                          _buildLiveStatCard("Total Jenis Barang", FirebaseFirestore.instance.collection('products').snapshots(), Colors.blue, Icons.inventory_2),
+                          _buildLiveStatCard("Total Jenis Barang", _dashboardService.getProductCountStream(), Colors.blue, Icons.inventory_2),
                           const SizedBox(width: 15),
-                          _buildLiveStatCard("Perlu Dikirim", FirebaseFirestore.instance.collection('orders').where('status', isEqualTo: 'Dikemas').snapshots(), Colors.orange, Icons.local_shipping_outlined),
+                          _buildLiveStatCard("Perlu Dikirim", _dashboardService.getOrderCountStream('Dikemas'), Colors.orange, Icons.local_shipping_outlined),
                           const SizedBox(width: 15),
-                          _buildLiveStatCard("Riwayat Masuk", FirebaseFirestore.instance.collection('transactions').where('type', isEqualTo: 'IN').snapshots(), Colors.green, Icons.download),
+                          _buildLiveStatCard("Riwayat Masuk", _dashboardService.getTransactionCountStream('IN'), Colors.green, Icons.download),
                         ] else ...[
-                          _buildLiveStatCard("Tugas Baru", FirebaseFirestore.instance.collection('orders').where('status', isEqualTo: 'Dikirim').snapshots(), Colors.orange, Icons.delivery_dining),
+                          _buildLiveStatCard("Tugas Baru", _dashboardService.getOrderCountStream('Dikirim'), Colors.orange, Icons.delivery_dining),
                           const SizedBox(width: 15),
-                          _buildLiveStatCard("Paket Selesai", FirebaseFirestore.instance.collection('orders').where('status', isEqualTo: 'Sampai').snapshots(), Colors.green, Icons.check_circle_outline),
+                          _buildLiveStatCard("Paket Selesai", _dashboardService.getOrderCountStream('Sampai'), Colors.green, Icons.check_circle_outline),
                         ],
                       ],
                     ),
@@ -225,8 +236,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     );
   }
-
-  //Menu Admin
+  
   Widget _buildAdminMenu(BuildContext context) {
     return Column(
       children: [
@@ -283,7 +293,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  //Menu Kurir
   Widget _buildCourierMenu(BuildContext context) {
     return GridView.count(
       shrinkWrap: true,

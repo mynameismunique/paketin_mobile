@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/auth_service.dart';
 import '../dashboard/dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -10,6 +11,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final AuthService _authService = AuthService();
+
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   
@@ -26,9 +29,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      await _authService.login(
+        _emailController.text.trim(), 
+        _passwordController.text.trim()
       );
       
       if (mounted) {
@@ -76,6 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: const Icon(Icons.local_shipping_rounded, size: 60, color: Colors.blueAccent),
               ),
               const SizedBox(height: 20),
+              
               const Text(
                 "PAKETIN",
                 style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.black87),
@@ -121,6 +125,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     
                     const SizedBox(height: 10),
+                    
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
