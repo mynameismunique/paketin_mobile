@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/supplier_service.dart';
 
 class SupplierScreen extends StatefulWidget {
   const SupplierScreen({super.key});
@@ -9,6 +10,8 @@ class SupplierScreen extends StatefulWidget {
 }
 
 class _SupplierScreenState extends State<SupplierScreen> {
+  final SupplierService _supplierService = SupplierService();
+
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
@@ -52,14 +55,14 @@ class _SupplierScreenState extends State<SupplierScreen> {
             onPressed: () async {
               if (_nameController.text.isNotEmpty) {
                 if (docId == null) {
-                  await FirebaseFirestore.instance.collection('suppliers').add({
+                  await _supplierService.addSupplier({
                     'name': _nameController.text,
                     'phone': _phoneController.text,
                     'address': _addressController.text,
                     'createdAt': FieldValue.serverTimestamp(),
                   });
                 } else {
-                  await FirebaseFirestore.instance.collection('suppliers').doc(docId).update({
+                  await _supplierService.updateSupplier(docId, {
                     'name': _nameController.text,
                     'phone': _phoneController.text,
                     'address': _addressController.text,
@@ -141,28 +144,23 @@ class _SupplierScreenState extends State<SupplierScreen> {
 
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('suppliers').orderBy('name').snapshots(),
+              stream: _supplierService.getSuppliersStream(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
                 
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                   return _emptyState();
+                }
+
                 var docs = snapshot.data!.docs.where((doc) {
                   var data = doc.data() as Map<String, dynamic>;
                   return data['name'].toString().toLowerCase().contains(_searchQuery);
                 }).toList();
 
                 if (docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.store_mall_directory_outlined, size: 80, color: Colors.grey[300]),
-                        const SizedBox(height: 10),
-                        Text("Belum ada data supplier", style: TextStyle(color: Colors.grey[500], fontSize: 16)),
-                      ],
-                    ),
-                  );
+                  return _emptyState();
                 }
 
                 return ListView.builder(
@@ -244,6 +242,19 @@ class _SupplierScreenState extends State<SupplierScreen> {
       ),
     );
   }
+  
+  Widget _emptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.store_mall_directory_outlined, size: 80, color: Colors.grey[300]),
+          const SizedBox(height: 10),
+          Text("Belum ada data supplier", style: TextStyle(color: Colors.grey[500], fontSize: 16)),
+        ],
+      ),
+    );
+  }
 
   void _deleteSupplier(String docId, String name) {
     showDialog(
@@ -256,7 +267,7 @@ class _SupplierScreenState extends State<SupplierScreen> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              await FirebaseFirestore.instance.collection('suppliers').doc(docId).delete();
+              await _supplierService.deleteSupplier(docId);
               if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Data dihapus")));
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),

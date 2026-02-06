@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/inventory_service.dart';
 
 class EditItemScreen extends StatefulWidget {
   final String docId;
@@ -12,11 +12,14 @@ class EditItemScreen extends StatefulWidget {
 }
 
 class _EditItemScreenState extends State<EditItemScreen> {
+  final InventoryService _inventoryService = InventoryService();
   final _formKey = GlobalKey<FormState>();
   
   late TextEditingController _nameController;
   late TextEditingController _skuController;
   late TextEditingController _stockController;
+  late TextEditingController _imageController;
+  
   String _selectedCategory = 'Umum';
   bool _isLoading = false;
 
@@ -28,6 +31,7 @@ class _EditItemScreenState extends State<EditItemScreen> {
     _nameController = TextEditingController(text: widget.data['name']);
     _skuController = TextEditingController(text: widget.data['sku']);
     _stockController = TextEditingController(text: widget.data['stock'].toString());
+    _imageController = TextEditingController(text: widget.data['imageUrl'] ?? ''); // Load Link Gambar
     _selectedCategory = widget.data['category'] ?? 'Umum';
   }
 
@@ -35,11 +39,13 @@ class _EditItemScreenState extends State<EditItemScreen> {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       try {
-        await FirebaseFirestore.instance.collection('products').doc(widget.docId).update({
+        // 3. Panggil Service untuk Update
+        await _inventoryService.updateProduct(widget.docId, {
           'name': _nameController.text,
           'sku': _skuController.text,
           'category': _selectedCategory,
           'stock': int.parse(_stockController.text),
+          'imageUrl': _imageController.text, // Update Link Gambar
         });
 
         if (mounted) {
@@ -60,50 +66,121 @@ class _EditItemScreenState extends State<EditItemScreen> {
     }
   }
 
+  InputDecoration _inputStyle(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(icon, color: Colors.orange),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      filled: true,
+      fillColor: Colors.grey.shade50,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Edit Barang")),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text("Edit Data Barang"),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        foregroundColor: Colors.black,
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Form(
           key: _formKey,
           child: Column(
             children: [
+              Center(
+                child: Container(
+                  height: 150,
+                  width: 150,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: _imageController.text.isEmpty
+                        ? const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.image_not_supported, size: 40, color: Colors.grey),
+                              Text("Tidak ada gambar", style: TextStyle(color: Colors.grey, fontSize: 10)),
+                            ],
+                          )
+                        : Image.network(
+                            _imageController.text,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Center(child: Icon(Icons.broken_image, color: Colors.red));
+                            },
+                          ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              TextFormField(
+                controller: _imageController,
+                decoration: _inputStyle("Link Gambar (URL)", Icons.link),
+                onChanged: (val) => setState(() {}),
+              ),
+              const SizedBox(height: 15),
+
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(labelText: "Nama Barang", border: OutlineInputBorder()),
+                decoration: _inputStyle("Nama Barang", Icons.inventory_2),
                 validator: (val) => val!.isEmpty ? "Wajib diisi" : null,
               ),
               const SizedBox(height: 15),
+
               TextFormField(
                 controller: _skuController,
-                decoration: const InputDecoration(labelText: "SKU", border: OutlineInputBorder()),
+                decoration: _inputStyle("Kode SKU", Icons.qr_code),
                 validator: (val) => val!.isEmpty ? "Wajib diisi" : null,
               ),
               const SizedBox(height: 15),
+
               DropdownButtonFormField<String>(
                 value: _categories.contains(_selectedCategory) ? _selectedCategory : 'Umum',
                 items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
                 onChanged: (val) => setState(() => _selectedCategory = val!),
-                decoration: const InputDecoration(labelText: "Kategori", border: OutlineInputBorder()),
+                decoration: _inputStyle("Kategori", Icons.category),
               ),
               const SizedBox(height: 15),
+
               TextFormField(
                 controller: _stockController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Stok", border: OutlineInputBorder()),
+                decoration: _inputStyle("Stok Saat Ini", Icons.numbers),
                 validator: (val) => val!.isEmpty ? "Wajib diisi" : null,
               ),
+              
               const SizedBox(height: 30),
+
               SizedBox(
                 width: double.infinity,
-                height: 50,
+                height: 55,
                 child: ElevatedButton.icon(
                   onPressed: _isLoading ? null : _updateItem,
                   icon: const Icon(Icons.save_as),
-                  label: Text(_isLoading ? "Menyimpan..." : "UPDATE DATA"),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+                  label: Text(
+                    _isLoading ? "Menyimpan..." : "UPDATE DATA",
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    elevation: 5,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  ),
                 ),
               ),
             ],

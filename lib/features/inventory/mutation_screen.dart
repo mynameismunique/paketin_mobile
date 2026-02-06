@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/transaction_service.dart';
 
 class MutationScreen extends StatefulWidget {
   const MutationScreen({super.key});
@@ -9,6 +10,8 @@ class MutationScreen extends StatefulWidget {
 }
 
 class _MutationScreenState extends State<MutationScreen> {
+  final TransactionService _transactionService = TransactionService();
+
   String? _selectedProductDocId;
   String? _selectedProductName;
   String? _sourceWarehouse;
@@ -35,45 +38,13 @@ class _MutationScreenState extends State<MutationScreen> {
     }
 
     try {
-      DocumentReference productRef = FirebaseFirestore.instance.collection('products').doc(_selectedProductDocId);
-      
-      await FirebaseFirestore.instance.runTransaction((transaction) async {
-        DocumentSnapshot snapshot = await transaction.get(productRef);
-        if (!snapshot.exists) throw Exception("Produk tidak ditemukan!");
-
-        Map<String, dynamic> data = snapshot.data() as Map<String, dynamic>;
-        Map<String, dynamic> warehouseStocks = (data['warehouse_stocks'] as Map<String, dynamic>?) ?? {};
-
-        String source = _sourceWarehouse!;
-        String dest = _destWarehouse!;
-        
-        int oldSourceStock = warehouseStocks[source] ?? 0;
-        int oldDestStock = warehouseStocks[dest] ?? 0;
-
-        int newSourceStock = oldSourceStock - qty;
-        int newDestStock = oldDestStock + qty;
-
-        warehouseStocks[source] = newSourceStock;
-        warehouseStocks[dest] = newDestStock;
-
-        transaction.update(productRef, {'warehouse_stocks': warehouseStocks});
-
-        transaction.set(FirebaseFirestore.instance.collection('mutations').doc(), {
-          'productName': _selectedProductName,
-          'from': source,
-          'to': dest,
-          'qty': qty,
-          'date': FieldValue.serverTimestamp(),
-        });
-
-        transaction.set(FirebaseFirestore.instance.collection('audit_logs').doc(), {
-          'activity': "Mutasi Gudang",
-          'details': "Pindah $_selectedProductName ($qty) : $source -> $dest",
-          'user': "Admin",
-          'timestamp': FieldValue.serverTimestamp(),
-          'type': 'warning',
-        });
-      });
+      await _transactionService.mutationStock(
+        productId: _selectedProductDocId!,
+        productName: _selectedProductName!,
+        source: _sourceWarehouse!,
+        dest: _destWarehouse!,
+        qty: qty,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Mutasi Berhasil!"), backgroundColor: Colors.green));
@@ -122,7 +93,7 @@ class _MutationScreenState extends State<MutationScreen> {
                 child: Column(
                   children: [
                     StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance.collection('products').orderBy('name').snapshots(),
+                      stream: _transactionService.getProductsStream(),
                       builder: (context, snapshot) {
                         List<DropdownMenuItem<String>> items = [];
                         if (snapshot.hasData) {
@@ -149,7 +120,7 @@ class _MutationScreenState extends State<MutationScreen> {
                             "Dari", 
                             Icons.store_mall_directory, 
                             _sourceWarehouse, 
-                            _warehouses.map((w) => DropdownMenuItem(value: w, child: Text(w, style: const TextStyle(fontSize: 12)))).toList(), // Font diperkecil dikit
+                            _warehouses.map((w) => DropdownMenuItem(value: w, child: Text(w, style: const TextStyle(fontSize: 12)))).toList(),
                             (val) => setState(() => _sourceWarehouse = val)
                           ),
                         ),

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../services/inventory_service.dart';
 
 class AddItemScreen extends StatefulWidget {
   const AddItemScreen({super.key});
@@ -12,6 +13,8 @@ class AddItemScreen extends StatefulWidget {
 }
 
 class _AddItemScreenState extends State<AddItemScreen> {
+  final InventoryService _inventoryService = InventoryService();
+
   final _formKey = GlobalKey<FormState>();
   
   final _nameController = TextEditingController();
@@ -44,7 +47,6 @@ class _AddItemScreenState extends State<AddItemScreen> {
       });
     }
   }
-
 
   void _showImageSourceDialog() {
     showModalBottomSheet(
@@ -97,7 +99,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       try {
-        await FirebaseFirestore.instance.collection('products').add({
+        await _inventoryService.addProduct({
           'name': _nameController.text,
           'sku': _skuController.text,
           'category': _selectedCategory,
@@ -152,7 +154,6 @@ class _AddItemScreenState extends State<AddItemScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // --- AREA UPLOAD FOTO ---
               GestureDetector(
                 onTap: _showImageSourceDialog,
                 child: Center(
@@ -176,7 +177,7 @@ class _AddItemScreenState extends State<AddItemScreen> {
                             Text("Upload Foto Barang", style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold)),
                           ],
                         )
-                      : null, // Kalau ada gambar, child kosong
+                      : null,
                   ),
                 ),
               ),
